@@ -1,5 +1,8 @@
 node_modules/
 db/oylama.db
+*.db
+*.db-shm
+*.db-wal
 public/uploads/*
 !public/uploads/.gitkeep
 .env

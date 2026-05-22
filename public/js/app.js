@@ -46,6 +46,22 @@ const App = {
         
         // Handle resize for particles
         window.addEventListener('resize', () => this.handleResize());
+
+        // Load site logo
+        this.loadSiteLogo();
+    },
+
+    async loadSiteLogo() {
+        try {
+            const data = await API.getLogo();
+            const logoEl = document.getElementById('header-logo');
+            const fallbackEl = document.getElementById('brand-icon-fallback');
+            if (data && data.logo) {
+                logoEl.src = data.logo;
+                logoEl.classList.remove('hidden');
+                if (fallbackEl) fallbackEl.style.display = 'none';
+            }
+        } catch (e) {}
     },
 
     hideLoading() {

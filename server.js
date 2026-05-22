@@ -31,6 +31,7 @@ app.use('/api/elections', require('./routes/elections'));
 app.use('/api/candidates', require('./routes/candidates'));
 app.use('/api/voters', require('./routes/voters'));
 app.use('/api/votes', require('./routes/votes'));
+app.use('/api/settings', require('./routes/settings'));
 
 // SPA fallback - serve index.html for all non-API routes
 app.get('*', (req, res) => {

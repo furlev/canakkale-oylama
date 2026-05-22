@@ -163,5 +163,18 @@ const API = {
 
     async getParticipation(electionId) {
         return this.request('GET', `/api/votes/participation/${electionId}`);
+    },
+
+    // ===== SETTINGS =====
+    async getLogo() {
+        return this.request('GET', '/api/settings/logo');
+    },
+
+    async uploadLogo(formData) {
+        return this.request('POST', '/api/settings/logo', formData, true);
+    },
+
+    async deleteLogo() {
+        return this.request('DELETE', '/api/settings/logo');
     }
 };

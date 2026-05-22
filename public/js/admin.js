@@ -31,6 +31,7 @@ const Admin = {
             case 'elections': this.loadElections(); break;
             case 'voters': this.loadVoters(); break;
             case 'results': this.loadResultsTab(); break;
+            case 'settings': this.loadSettings(); break;
         }
     },
 
@@ -788,5 +789,71 @@ const Admin = {
         } catch (error) {
             statsEl.innerHTML = '<div class="empty-state"><div class="empty-icon">❌</div><h3>Sonuçlar yüklenemedi</h3></div>';
         }
+    },
+
+    // ===== SETTINGS / LOGO =====
+    async loadSettings() {
+        try {
+            const data = await API.getLogo();
+            const preview = document.getElementById('current-logo-preview');
+            if (data.logo) {
+                preview.innerHTML = `
+                    <img src="${data.logo}" alt="Site Logosu" style="max-height:80px;max-width:300px;object-fit:contain;margin:0 auto;border-radius:8px;border:1px solid var(--glass-border);padding:8px;background:rgba(255,255,255,0.05);">
+                `;
+            } else {
+                preview.innerHTML = '<p style="color: var(--text-muted);">Logo yüklenmedi</p>';
+            }
+        } catch (e) {}
+    },
+
+    async uploadLogo(input) {
+        if (!input.files || !input.files[0]) return;
+        const formData = new FormData();
+        formData.append('logo', input.files[0]);
+
+        try {
+            const data = await API.uploadLogo(formData);
+            App.showToast('Logo başarıyla yüklendi! ✅', 'success');
+            this.loadSettings();
+            this.updateLogoInHeader();
+        } catch (error) {
+            App.showToast('Logo yüklenemedi', 'error');
+        }
+        input.value = '';
+    },
+
+    async deleteLogo() {
+        App.showConfirm(
+            'Logoyu Kaldır',
+            'Site logosunu kaldırmak istediğinize emin misiniz?',
+            async () => {
+                try {
+                    await API.deleteLogo();
+                    App.showToast('Logo kaldırıldı', 'success');
+                    this.loadSettings();
+                    this.updateLogoInHeader();
+                } catch (e) {
+                    App.showToast('Logo kaldırılamadı', 'error');
+                }
+            },
+            '🗑️'
+        );
+    },
+
+    async updateLogoInHeader() {
+        try {
+            const data = await API.getLogo();
+            const logoEl = document.getElementById('header-logo');
+            const fallbackEl = document.getElementById('brand-icon-fallback');
+            if (data.logo) {
+                logoEl.src = data.logo;
+                logoEl.classList.remove('hidden');
+                if (fallbackEl) fallbackEl.style.display = 'none';
+            } else {
+                logoEl.classList.add('hidden');
+                logoEl.src = '';
+                if (fallbackEl) fallbackEl.style.display = '';
+            }
+        } catch (e) {}
     }
 };

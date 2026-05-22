@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Çanakkale Network Kurumsal Oylama Sistemi - Güvenli ve şeffaf elektronik oylama platformu">
+    <meta name="theme-color" content="#1a3a5c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Oylama">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="icon" type="image/png" href="/icons/icon-192.png">
+    <title>Çanakkale Oylama Sistemi</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/animations.css">
+</head>
+<body>
+    <!-- ========== LOADING SCREEN ========== -->
+    <div id="loading-screen" class="screen active">
+        <div class="loading-container">
+            <div class="loading-logo">
+                <span class="loading-icon">🗳️</span>
+                <h1 class="loading-title">Çanakkale Oylama</h1>
+            </div>
+            <div class="loading-bar">
+                <div class="loading-bar-fill"></div>
+            </div>
+            <p class="loading-text">Sistem yükleniyor...</p>
+        </div>
+    </div>
+
+    <!-- ========== PARTICLES BACKGROUND ========== -->
+    <div id="particles" class="particles"></div>
+
+    <!-- ========== HEADER / NAVBAR ========== -->
+    <header id="app-header" class="app-header hidden">
+        <div class="header-inner">
+            <div class="header-brand" onclick="App.navigate('#login')">
+                <span class="brand-icon">🗳️</span>
+                <span class="brand-text">Çanakkale Oylama</span>
+            </div>
+            <div class="header-user" id="header-user">
+                <div class="header-user-info">
+                    <span class="header-user-name" id="header-user-name"></span>
+                    <span class="header-user-role" id="header-user-role"></span>
+                </div>
+                <button class="btn btn-logout" id="btn-logout" onclick="App.logout()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    Çıkış
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ========== TOAST CONTAINER ========== -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- ========== LOGIN SCREEN ========== -->
+    <div id="login-screen" class="screen">
+        <div class="login-wrapper">
+            <div class="login-card glass-card">
+                <div class="login-header">
+                    <div class="login-logo">🗳️</div>
+                    <h1 class="login-title">Çanakkale Oylama Sistemi</h1>
+                    <p class="login-subtitle">Güvenli ve şeffaf kurumsal oylama platformu</p>
+                </div>
+
+                <div class="login-tabs">
+                    <button class="login-tab active" data-tab="voter" onclick="Auth.switchTab('voter')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        Seçmen Girişi
+                    </button>
+                    <button class="login-tab" data-tab="admin" onclick="Auth.switchTab('admin')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        Yönetici
+                    </button>
+                </div>
+
+                <!-- Voter Login -->
+                <form id="voter-login-form" class="login-form" onsubmit="Auth.loginVoter(event)">
+                    <div class="form-group">
+                        <input type="text" id="voter-token" class="form-input" placeholder=" " autocomplete="off" required>
+                        <label class="form-label" for="voter-token">Oylama Tokeni</label>
+                        <span class="form-hint">Size verilen erişim tokenini girin</span>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full" id="voter-login-btn">
+                        <span class="btn-text">Giriş Yap</span>
+                        <span class="btn-loader"></span>
+                    </button>
+                </form>
+
+                <!-- Admin Login -->
+                <form id="admin-login-form" class="login-form hidden" onsubmit="Auth.loginAdmin(event)">
+                    <div class="form-group">
+                        <input type="text" id="admin-username" class="form-input" placeholder=" " autocomplete="username" required>
+                        <label class="form-label" for="admin-username">Kullanıcı Adı</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="admin-password" class="form-input" placeholder=" " autocomplete="current-password" required>
+                        <label class="form-label" for="admin-password">Şifre</label>
+                        <button type="button" class="password-toggle" onclick="Auth.togglePassword()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full" id="admin-login-btn">
+                        <span class="btn-text">Giriş Yap</span>
+                        <span class="btn-loader"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== VOTER DASHBOARD ========== -->
+    <div id="voter-dashboard" class="screen">
+        <div class="container">
+            <div class="voter-welcome animate-fadeIn">
+                <div class="profile-card glass-card">
+                    <div class="profile-avatar" id="voter-avatar"></div>
+                    <div class="profile-info">
+                        <h2 class="profile-name" id="voter-name"></h2>
+                        <span class="profile-role" id="voter-role"></span>
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="section-title animate-slideUp stagger-2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Aktif Seçimler
+            </h2>
+
+            <div id="voter-elections" class="elections-grid">
+                <!-- Elections will be loaded here -->
+            </div>
+
+            <div id="no-elections" class="empty-state hidden">
+                <div class="empty-icon">📋</div>
+                <h3>Aktif seçim bulunmuyor</h3>
+                <p>Henüz katılabileceğiniz bir seçim yok. Lütfen daha sonra tekrar kontrol edin.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== VOTING SCREEN ========== -->
+    <div id="voting-screen" class="screen">
+        <div class="container">
+            <div class="voting-header">
+                <button class="btn btn-back" onclick="App.navigate('#voter')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    Geri Dön
+                </button>
+                <div class="voting-info">
+                    <h1 class="voting-title" id="voting-title"></h1>
+                    <p class="voting-description" id="voting-description"></p>
+                    <div class="voting-meta">
+                        <span class="voting-max" id="voting-max"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="already-voted" class="already-voted glass-card hidden">
+                <div class="already-voted-icon">✅</div>
+                <h2>Oyunuz Kaydedildi</h2>
+                <p>Bu seçimde zaten oy kullandınız.</p>
+                <div id="my-votes-list" class="my-votes-list"></div>
+            </div>
+
+            <div id="candidates-grid" class="candidates-grid">
+                <!-- Candidates will be loaded here -->
+            </div>
+
+            <div id="voting-actions" class="voting-actions">
+                <div class="selection-counter">
+                    <span id="selection-count">0</span> / <span id="max-votes">1</span> seçim yapıldı
+                </div>
+                <button class="btn btn-primary btn-lg" id="btn-confirm-vote" disabled onclick="Voting.confirmVote()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    Oyumu Onayla
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== RESULTS SCREEN ========== -->
+    <div id="results-screen" class="screen">
+        <div class="container">
+            <div class="results-header">
+                <button class="btn btn-back" id="results-back-btn" onclick="App.navigateBack()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    Geri Dön
+                </button>
+            </div>
+
+            <div id="results-waiting" class="results-waiting glass-card hidden">
+                <div class="waiting-icon">⏳</div>
+                <h2>Sonuçlar Bekleniyor</h2>
+                <p>Oyunuz kaydedildi. Seçim tamamlandığında sonuçlar burada görüntülenecektir.</p>
+            </div>
+
+            <div id="results-content" class="results-content hidden">
+                <div class="winner-announcement glass-card" id="winner-card">
+                    <div class="winner-badge">🏆</div>
+                    <h1 class="winner-title" id="winner-name"></h1>
+                    <p class="winner-subtitle">Seçim Kazananı</p>
+                    <span class="badge badge-completed">Seçim Tamamlandı</span>
+                </div>
+
+                <h2 class="section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                    Oy Dağılımı
+                </h2>
+
+                <div id="results-chart" class="results-chart">
+                    <!-- Bar chart will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== ADMIN DASHBOARD ========== -->
+    <div id="admin-dashboard" class="screen">
+        <div class="container">
+            <div class="admin-header">
+                <h1 class="admin-title animate-fadeIn">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    Yönetim Paneli
+                </h1>
+            </div>
+
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-tab="overview" onclick="Admin.switchTab('overview')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                    Genel Bakış
+                </button>
+                <button class="admin-tab" data-tab="elections" onclick="Admin.switchTab('elections')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line></svg>
+                    Seçimler
+                </button>
+                <button class="admin-tab" data-tab="voters" onclick="Admin.switchTab('voters')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    Seçmenler
+                </button>
+                <button class="admin-tab" data-tab="results" onclick="Admin.switchTab('results')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                    Sonuçlar
+                </button>
+            </div>
+
+            <!-- Overview Tab -->
+            <div id="tab-overview" class="admin-tab-content active">
+                <div class="stats-grid" id="stats-grid">
+                    <div class="stat-card glass-card animate-slideUp stagger-1">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #1a3a5c, #2d6b9e);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-total-elections">0</span>
+                            <span class="stat-label">Toplam Seçim</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card animate-slideUp stagger-2">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #2ecc71, #27ae60);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-active-elections">0</span>
+                            <span class="stat-label">Aktif Seçim</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card animate-slideUp stagger-3">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #d4a843, #e8c468);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-total-voters">0</span>
+                            <span class="stat-label">Toplam Seçmen</span>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-card animate-slideUp stagger-4">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #e74c3c, #c0392b);">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-4"></path></svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-participation">0%</span>
+                            <span class="stat-label">Katılım Oranı</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-elections">
+                    <h2 class="section-title">Son Seçimler</h2>
+                    <div id="overview-elections-list" class="overview-elections-list"></div>
+                </div>
+            </div>
+
+            <!-- Elections Tab -->
+            <div id="tab-elections" class="admin-tab-content">
+                <div class="tab-header">
+                    <h2 class="section-title">Seçim Yönetimi</h2>
+                    <button class="btn btn-primary" onclick="Admin.showCreateElectionModal()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Yeni Seçim
+                    </button>
+                </div>
+                <div id="elections-list" class="elections-list"></div>
+            </div>
+
+            <!-- Voters Tab -->
+            <div id="tab-voters" class="admin-tab-content">
+                <div class="tab-header">
+                    <h2 class="section-title">Seçmen Yönetimi</h2>
+                    <button class="btn btn-primary" onclick="Admin.showCreateVoterModal()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                        Yeni Seçmen
+                    </button>
+                </div>
+                <div class="table-wrapper glass-card">
+                    <table class="data-table" id="voters-table">
+                        <thead>
+                            <tr>
+                                <th>Profil</th>
+                                <th>Ad Soyad</th>
+                                <th>Görev</th>
+                                <th>Token</th>
+                                <th>Durum</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody id="voters-tbody">
+                        </tbody>
+                    </table>
+                </div>
+                <div id="no-voters" class="empty-state hidden">
+                    <div class="empty-icon">👥</div>
+                    <h3>Henüz seçmen eklenmedi</h3>
+                    <p>Yeni seçmen eklemek için yukarıdaki butonu kullanın.</p>
+                </div>
+            </div>
+
+            <!-- Results Tab -->
+            <div id="tab-results" class="admin-tab-content">
+                <div class="tab-header">
+                    <h2 class="section-title">Seçim Sonuçları</h2>
+                    <div class="form-group form-inline">
+                        <select class="form-input form-select" id="results-election-select" onchange="Admin.loadDetailedResults()">
+                            <option value="">Seçim seçin...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="admin-results-content" class="admin-results-content">
+                    <div id="admin-results-empty" class="empty-state">
+                        <div class="empty-icon">📊</div>
+                        <h3>Sonuçları görüntülemek için bir seçim seçin</h3>
+                    </div>
+                    <div id="admin-results-stats" class="hidden">
+                        <div class="stats-grid stats-grid-3" id="admin-stats-grid"></div>
+                        <div class="admin-results-chart" id="admin-results-chart"></div>
+                        <div class="detailed-votes-section">
+                            <h3 class="section-title">Detaylı Oy Tablosu</h3>
+                            <div class="table-wrapper glass-card">
+                                <table class="data-table" id="detailed-votes-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Seçmen</th>
+                                            <th>Oy Verilen Aday</th>
+                                            <th>Tarih</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="detailed-votes-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== MODAL ========== -->
+    <div id="modal-overlay" class="modal-overlay" onclick="App.hideModal(event)">
+        <div class="modal-content glass-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modal-title"></h2>
+                <button class="modal-close" onclick="App.hideModal()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- ========== CONFIRMATION MODAL ========== -->
+    <div id="confirm-overlay" class="modal-overlay" onclick="App.hideConfirm()">
+        <div class="modal-content glass-card modal-sm" onclick="event.stopPropagation()">
+            <div class="confirm-icon" id="confirm-icon">⚠️</div>
+            <h2 class="confirm-title" id="confirm-title"></h2>
+            <p class="confirm-message" id="confirm-message"></p>
+            <div class="confirm-actions">
+                <button class="btn btn-secondary" onclick="App.hideConfirm()">İptal</button>
+                <button class="btn btn-primary" id="confirm-action-btn">Onayla</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== CONFETTI CANVAS ========== -->
+    <canvas id="confetti-canvas" class="confetti-canvas"></canvas>
+
+    <!-- ========== SCRIPTS ========== -->
+    <script src="/js/api.js"></script>
+    <script src="/js/confetti.js"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/voting.js"></script>
+    <script src="/js/results.js"></script>
+    <script src="/js/admin.js"></script>
+
+    <script>
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('SW registered:', reg.scope))
+                    .catch(err => console.log('SW registration failed:', err));
+            });
+        }
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', () => {
+            App.init();
+        });
+    </script>
+</body>
+</html>

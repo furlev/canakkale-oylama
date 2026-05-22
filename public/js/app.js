@@ -62,6 +62,7 @@ const App = {
     onLoginSuccess() {
         this.hideLoading();
         this.updateHeader();
+        this.isTransitioning = false; // Reset any stuck transition
         
         if (this.isAdmin()) {
             this.navigate('#admin');
@@ -163,26 +164,18 @@ const App = {
         this.isTransitioning = true;
         const prevScreen = this.currentScreen ? document.getElementById(this.currentScreen) : null;
 
-        if (prevScreen && prevScreen !== target) {
-            prevScreen.classList.add('page-leave');
-            setTimeout(() => {
-                prevScreen.classList.remove('active', 'page-leave');
-            }, 300);
-        }
+        // Immediately remove active from all other screens
+        screens.forEach(s => {
+            if (s.id !== screenId && s.id !== 'loading-screen') {
+                s.classList.remove('active', 'page-leave', 'page-enter');
+            }
+        });
 
+        target.classList.add('active', 'page-enter');
         setTimeout(() => {
-            screens.forEach(s => {
-                if (s.id !== screenId && s.id !== 'loading-screen') {
-                    s.classList.remove('active');
-                }
-            });
-
-            target.classList.add('active', 'page-enter');
-            setTimeout(() => {
-                target.classList.remove('page-enter');
-                this.isTransitioning = false;
-            }, 400);
-        }, prevScreen ? 200 : 0);
+            target.classList.remove('page-enter');
+            this.isTransitioning = false;
+        }, 400);
 
         this.previousScreen = this.currentScreen;
         this.currentScreen = screenId;

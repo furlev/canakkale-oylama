@@ -3,65 +3,50 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
-const db = require('../db/database');
+const { pool } = require('../db/database');
 const { authenticateAdmin } = require('../middleware/auth');
 
-// Multer configuration for profile image uploads
+// Multer setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, path.join(__dirname, '..', 'public', 'uploads'));
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname);
-    cb(null, 'profile-' + uniqueSuffix + ext);
+    const uniqueName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+    cb(null, uniqueName);
   }
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
+    const allowed = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Sadece resim dosyaları yüklenebilir (jpeg, jpg, png, gif, webp)'));
+      cb(new Error('Sadece resim dosyaları yüklenebilir'));
     }
   }
 });
 
-// Generate unique 8-character uppercase alphanumeric token
-function generateVoterToken() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let token;
-  let attempts = 0;
-  const maxAttempts = 100;
-
-  do {
-    token = '';
-    for (let i = 0; i < 8; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    attempts++;
-    const existing = db.prepare('SELECT id FROM voters WHERE token = ?').get(token);
-    if (!existing) break;
-  } while (attempts < maxAttempts);
-
-  if (attempts >= maxAttempts) {
-    throw new Error('Benzersiz token oluşturulamadı');
+// Generate random 8-character token
+function generateToken() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let token = '';
+  for (let i = 0; i < 8; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-
   return token;
 }
 
 // GET /api/voters - List all voters
-router.get('/', authenticateAdmin, (req, res) => {
+router.get('/', authenticateAdmin, async (req, res) => {
   try {
-    const voters = db.prepare('SELECT * FROM voters ORDER BY created_at DESC').all();
-    res.json({ success: true, data: voters });
+    const { rows } = await pool.query('SELECT * FROM voters ORDER BY created_at DESC');
+    res.json({ success: true, data: rows });
   } catch (error) {
     console.error('Get voters error:', error);
     res.status(500).json({ success: false, error: 'Seçmenler alınamadı' });
@@ -69,7 +54,7 @@ router.get('/', authenticateAdmin, (req, res) => {
 });
 
 // POST /api/voters - Create voter
-router.post('/', authenticateAdmin, upload.single('profile_image'), (req, res) => {
+router.post('/', authenticateAdmin, upload.single('profile_image'), async (req, res) => {
   try {
     const { first_name, last_name, role } = req.body;
 
@@ -77,70 +62,77 @@ router.post('/', authenticateAdmin, upload.single('profile_image'), (req, res) =
       return res.status(400).json({ success: false, error: 'Ad ve soyad gerekli' });
     }
 
-    const token = generateVoterToken();
-    let profileImage = '';
-    if (req.file) {
-      profileImage = '/uploads/' + req.file.filename;
+    // Generate unique token
+    let token;
+    let isUnique = false;
+    while (!isUnique) {
+      token = generateToken();
+      const { rows } = await pool.query('SELECT id FROM voters WHERE token = $1', [token]);
+      if (rows.length === 0) isUnique = true;
     }
 
-    const result = db.prepare(
-      'INSERT INTO voters (token, first_name, last_name, role, profile_image) VALUES (?, ?, ?, ?, ?)'
-    ).run(token, first_name, last_name, role || '', profileImage);
+    const profileImage = req.file ? `/uploads/${req.file.filename}` : '';
 
-    const voter = db.prepare('SELECT * FROM voters WHERE id = ?').get(result.lastInsertRowid);
+    const { rows } = await pool.query(
+      'INSERT INTO voters (token, first_name, last_name, role, profile_image) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [token, first_name, last_name, role || '', profileImage]
+    );
 
-    res.status(201).json({ success: true, data: voter });
+    res.status(201).json({ success: true, data: rows[0] });
   } catch (error) {
     console.error('Create voter error:', error);
     res.status(500).json({ success: false, error: 'Seçmen oluşturulamadı' });
   }
 });
 
-// POST /api/voters/upload-image/:id - Upload profile image for voter
-router.post('/upload-image/:id', authenticateAdmin, upload.single('profile_image'), (req, res) => {
+// POST /api/voters/upload-image/:id - Upload profile image
+router.post('/upload-image/:id', authenticateAdmin, upload.single('profile_image'), async (req, res) => {
   try {
-    const voter = db.prepare('SELECT * FROM voters WHERE id = ?').get(req.params.id);
-    if (!voter) {
+    const { rows: existing } = await pool.query('SELECT * FROM voters WHERE id = $1', [req.params.id]);
+    if (existing.length === 0) {
       return res.status(404).json({ success: false, error: 'Seçmen bulunamadı' });
     }
 
     if (!req.file) {
-      return res.status(400).json({ success: false, error: 'Resim dosyası gerekli' });
+      return res.status(400).json({ success: false, error: 'Dosya yüklenmedi' });
     }
 
-    const profileImage = '/uploads/' + req.file.filename;
-    db.prepare('UPDATE voters SET profile_image = ? WHERE id = ?').run(profileImage, req.params.id);
+    const profileImage = `/uploads/${req.file.filename}`;
+    const { rows } = await pool.query(
+      'UPDATE voters SET profile_image = $1 WHERE id = $2 RETURNING *',
+      [profileImage, req.params.id]
+    );
 
-    const updated = db.prepare('SELECT * FROM voters WHERE id = ?').get(req.params.id);
-    res.json({ success: true, data: updated });
+    res.json({ success: true, data: rows[0] });
   } catch (error) {
-    console.error('Upload voter image error:', error);
-    res.status(500).json({ success: false, error: 'Profil resmi yüklenemedi' });
+    console.error('Upload image error:', error);
+    res.status(500).json({ success: false, error: 'Resim yüklenemedi' });
   }
 });
 
 // PUT /api/voters/:id - Update voter
-router.put('/:id', authenticateAdmin, (req, res) => {
+router.put('/:id', authenticateAdmin, async (req, res) => {
   try {
-    const voter = db.prepare('SELECT * FROM voters WHERE id = ?').get(req.params.id);
-    if (!voter) {
+    const { rows: existing } = await pool.query('SELECT * FROM voters WHERE id = $1', [req.params.id]);
+    if (existing.length === 0) {
       return res.status(404).json({ success: false, error: 'Seçmen bulunamadı' });
     }
+    const voter = existing[0];
 
     const { first_name, last_name, role, is_active } = req.body;
 
-    db.prepare(
-      'UPDATE voters SET first_name = ?, last_name = ?, role = ?, is_active = ? WHERE id = ?'
-    ).run(
-      first_name || voter.first_name,
-      last_name || voter.last_name,
-      role !== undefined ? role : voter.role,
-      is_active !== undefined ? (is_active ? 1 : 0) : voter.is_active,
-      req.params.id
+    const { rows } = await pool.query(
+      'UPDATE voters SET first_name = $1, last_name = $2, role = $3, is_active = $4 WHERE id = $5 RETURNING *',
+      [
+        first_name || voter.first_name,
+        last_name || voter.last_name,
+        role !== undefined ? role : voter.role,
+        is_active !== undefined ? is_active : voter.is_active,
+        req.params.id
+      ]
     );
 
-    const updated = db.prepare('SELECT * FROM voters WHERE id = ?').get(req.params.id);
-    res.json({ success: true, data: updated });
+    res.json({ success: true, data: rows[0] });
   } catch (error) {
     console.error('Update voter error:', error);
     res.status(500).json({ success: false, error: 'Seçmen güncellenemedi' });
@@ -148,15 +140,14 @@ router.put('/:id', authenticateAdmin, (req, res) => {
 });
 
 // DELETE /api/voters/:id - Delete voter
-router.delete('/:id', authenticateAdmin, (req, res) => {
+router.delete('/:id', authenticateAdmin, async (req, res) => {
   try {
-    const voter = db.prepare('SELECT * FROM voters WHERE id = ?').get(req.params.id);
-    if (!voter) {
+    const { rows: existing } = await pool.query('SELECT * FROM voters WHERE id = $1', [req.params.id]);
+    if (existing.length === 0) {
       return res.status(404).json({ success: false, error: 'Seçmen bulunamadı' });
     }
 
-    db.prepare('DELETE FROM voters WHERE id = ?').run(req.params.id);
-
+    await pool.query('DELETE FROM voters WHERE id = $1', [req.params.id]);
     res.json({ success: true, data: { message: 'Seçmen başarıyla silindi' } });
   } catch (error) {
     console.error('Delete voter error:', error);

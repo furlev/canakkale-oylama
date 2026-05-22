@@ -11,9 +11,6 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Initialize database (creates tables and default admin)
-require('./db/database');
-
 const app = express();
 const PORT = process.env.PORT || 3500;
 
@@ -51,7 +48,18 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Çanakkale Oylama Sistemi running on port ${PORT}`);
-  console.log(`http://localhost:${PORT}`);
-});
+// Initialize database and start server
+const { initDB } = require('./db/database');
+
+(async () => {
+  try {
+    await initDB();
+    app.listen(PORT, () => {
+      console.log(`Çanakkale Oylama Sistemi running on port ${PORT}`);
+      console.log(`http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    process.exit(1);
+  }
+})();

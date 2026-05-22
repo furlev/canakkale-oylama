@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const db = require('../db/database');
+const { pool } = require('../db/database');
 const { authenticateAny, JWT_SECRET } = require('../middleware/auth');
 
 // POST /api/auth/login/admin
-router.post('/login/admin', (req, res) => {
+router.post('/login/admin', async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -14,11 +14,12 @@ router.post('/login/admin', (req, res) => {
       return res.status(400).json({ success: false, error: 'Kullanıcı adı ve şifre gerekli' });
     }
 
-    const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(username);
-    if (!admin) {
+    const { rows } = await pool.query('SELECT * FROM admins WHERE username = $1', [username]);
+    if (rows.length === 0) {
       return res.status(401).json({ success: false, error: 'Geçersiz kullanıcı adı veya şifre' });
     }
 
+    const admin = rows[0];
     const isValid = bcrypt.compareSync(password, admin.password_hash);
     if (!isValid) {
       return res.status(401).json({ success: false, error: 'Geçersiz kullanıcı adı veya şifre' });
@@ -46,7 +47,7 @@ router.post('/login/admin', (req, res) => {
 });
 
 // POST /api/auth/login/voter
-router.post('/login/voter', (req, res) => {
+router.post('/login/voter', async (req, res) => {
   try {
     const { token: voterToken } = req.body;
 
@@ -54,11 +55,12 @@ router.post('/login/voter', (req, res) => {
       return res.status(400).json({ success: false, error: 'Seçmen token\'ı gerekli' });
     }
 
-    const voter = db.prepare('SELECT * FROM voters WHERE token = ? AND is_active = 1').get(voterToken);
-    if (!voter) {
+    const { rows } = await pool.query('SELECT * FROM voters WHERE token = $1 AND is_active = TRUE', [voterToken]);
+    if (rows.length === 0) {
       return res.status(401).json({ success: false, error: 'Geçersiz veya devre dışı seçmen token\'ı' });
     }
 
+    const voter = rows[0];
     const jwtToken = jwt.sign(
       {
         type: 'voter',
@@ -91,16 +93,16 @@ router.post('/login/voter', (req, res) => {
 });
 
 // GET /api/auth/me
-router.get('/me', authenticateAny, (req, res) => {
+router.get('/me', authenticateAny, async (req, res) => {
   try {
     if (req.user.type === 'admin') {
-      const admin = db.prepare('SELECT id, username, created_at FROM admins WHERE id = ?').get(req.user.data.id);
-      if (!admin) {
+      const { rows } = await pool.query('SELECT id, username, created_at FROM admins WHERE id = $1', [req.user.data.id]);
+      if (rows.length === 0) {
         return res.status(404).json({ success: false, error: 'Admin bulunamadı' });
       }
       res.json({
         success: true,
-        data: { type: 'admin', ...admin }
+        data: { type: 'admin', ...rows[0] }
       });
     } else {
       const voter = req.user.data;

@@ -1,9 +1,9 @@
 const jwt = require('jsonwebtoken');
-const db = require('../db/database');
+const { pool } = require('../db/database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'canakkale-oylama-secret-2026';
 
-function authenticateAdmin(req, res, next) {
+async function authenticateAdmin(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -27,7 +27,7 @@ function authenticateAdmin(req, res, next) {
   }
 }
 
-function authenticateVoter(req, res, next) {
+async function authenticateVoter(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -41,13 +41,12 @@ function authenticateVoter(req, res, next) {
       return res.status(403).json({ success: false, error: 'Seçmen yetkisi gerekli' });
     }
 
-    // Fetch full voter data from DB
-    const voter = db.prepare('SELECT * FROM voters WHERE id = ? AND is_active = 1').get(decoded.id);
-    if (!voter) {
+    const { rows } = await pool.query('SELECT * FROM voters WHERE id = $1 AND is_active = TRUE', [decoded.id]);
+    if (rows.length === 0) {
       return res.status(401).json({ success: false, error: 'Seçmen bulunamadı veya devre dışı' });
     }
 
-    req.voter = voter;
+    req.voter = rows[0];
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -57,7 +56,7 @@ function authenticateVoter(req, res, next) {
   }
 }
 
-function authenticateAny(req, res, next) {
+async function authenticateAny(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -70,11 +69,11 @@ function authenticateAny(req, res, next) {
     if (decoded.type === 'admin') {
       req.user = { type: 'admin', data: decoded };
     } else if (decoded.type === 'voter') {
-      const voter = db.prepare('SELECT * FROM voters WHERE id = ? AND is_active = 1').get(decoded.id);
-      if (!voter) {
+      const { rows } = await pool.query('SELECT * FROM voters WHERE id = $1 AND is_active = TRUE', [decoded.id]);
+      if (rows.length === 0) {
         return res.status(401).json({ success: false, error: 'Seçmen bulunamadı veya devre dışı' });
       }
-      req.user = { type: 'voter', data: voter };
+      req.user = { type: 'voter', data: rows[0] };
     } else {
       return res.status(401).json({ success: false, error: 'Geçersiz token türü' });
     }

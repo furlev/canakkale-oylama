@@ -1,74 +1,84 @@
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
-const path = require('path');
 
-const dbPath = path.join(__dirname, '..', 'oylama.db');
-const db = new Database(dbPath);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
-// Enable WAL mode and foreign keys
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+async function initDB() {
+  const client = await pool.connect();
+  try {
+    // Create tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admins (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
-// Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS admins (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS voters (
+        id SERIAL PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        role TEXT DEFAULT '',
+        profile_image TEXT DEFAULT '',
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
-  CREATE TABLE IF NOT EXISTS voters (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token TEXT UNIQUE NOT NULL,
-    first_name TEXT NOT NULL,
-    last_name TEXT NOT NULL,
-    role TEXT DEFAULT '',
-    profile_image TEXT DEFAULT '',
-    is_active INTEGER DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS elections (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        status TEXT DEFAULT 'draft',
+        max_votes INTEGER DEFAULT 1,
+        start_date TIMESTAMP,
+        end_date TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
-  CREATE TABLE IF NOT EXISTS elections (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    status TEXT DEFAULT 'draft',
-    max_votes INTEGER DEFAULT 1,
-    start_date DATETIME,
-    end_date DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS candidates (
+        id SERIAL PRIMARY KEY,
+        election_id INTEGER NOT NULL REFERENCES elections(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        image TEXT DEFAULT '',
+        display_order INTEGER DEFAULT 0
+      )
+    `);
 
-  CREATE TABLE IF NOT EXISTS candidates (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    election_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    image TEXT DEFAULT '',
-    display_order INTEGER DEFAULT 0,
-    FOREIGN KEY (election_id) REFERENCES elections(id) ON DELETE CASCADE
-  );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS votes (
+        id SERIAL PRIMARY KEY,
+        election_id INTEGER NOT NULL REFERENCES elections(id) ON DELETE CASCADE,
+        voter_id INTEGER NOT NULL REFERENCES voters(id) ON DELETE CASCADE,
+        candidate_id INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+        voted_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(election_id, voter_id, candidate_id)
+      )
+    `);
 
-  CREATE TABLE IF NOT EXISTS votes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    election_id INTEGER NOT NULL,
-    voter_id INTEGER NOT NULL,
-    candidate_id INTEGER NOT NULL,
-    voted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(election_id, voter_id, candidate_id),
-    FOREIGN KEY (election_id) REFERENCES elections(id) ON DELETE CASCADE,
-    FOREIGN KEY (voter_id) REFERENCES voters(id) ON DELETE CASCADE,
-    FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
-  );
-`);
+    // Create default admin if not exists
+    const { rows } = await client.query('SELECT id FROM admins WHERE username = $1', ['admin']);
+    if (rows.length === 0) {
+      const hash = bcrypt.hashSync('canakkale2026', 10);
+      await client.query('INSERT INTO admins (username, password_hash) VALUES ($1, $2)', ['admin', hash]);
+      console.log('Default admin created (username: admin)');
+    }
 
-// Create default admin if not exists
-const existingAdmin = db.prepare('SELECT id FROM admins WHERE username = ?').get('admin');
-if (!existingAdmin) {
-  const passwordHash = bcrypt.hashSync('canakkale2026', 10);
-  db.prepare('INSERT INTO admins (username, password_hash) VALUES (?, ?)').run('admin', passwordHash);
-  console.log('Default admin created (username: admin)');
+    console.log('Database initialized successfully');
+  } finally {
+    client.release();
+  }
 }
 
-module.exports = db;
+module.exports = { pool, initDB };

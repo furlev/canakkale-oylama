@@ -217,4 +217,35 @@ router.get('/stats/:electionId', authenticateAdmin, async (req, res) => {
   }
 });
 
+// GET /api/votes/participation/:electionId - Get voter participation status (who voted, not who they voted for)
+router.get('/participation/:electionId', authenticateAny, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        v.id, v.first_name, v.last_name, v.role, v.profile_image,
+        CASE WHEN vt.voter_id IS NOT NULL THEN true ELSE false END as has_voted
+      FROM voters v
+      LEFT JOIN (
+        SELECT DISTINCT voter_id FROM votes WHERE election_id = $1
+      ) vt ON v.id = vt.voter_id
+      WHERE v.is_active = TRUE
+      ORDER BY has_voted DESC, v.first_name ASC
+    `, [req.params.electionId]);
+
+    const votedCount = rows.filter(r => r.has_voted).length;
+
+    res.json({
+      success: true,
+      data: {
+        participants: rows,
+        votedCount,
+        totalCount: rows.length
+      }
+    });
+  } catch (error) {
+    console.error('Get participation error:', error);
+    res.status(500).json({ success: false, error: 'Katılım bilgisi alınamadı' });
+  }
+});
+
 module.exports = router;

@@ -159,5 +159,9 @@ const API = {
 
     async getStats(electionId) {
         return this.request('GET', `/api/votes/stats/${electionId}`);
+    },
+
+    async getParticipation(electionId) {
+        return this.request('GET', `/api/votes/participation/${electionId}`);
     }
 };

@@ -4,46 +4,55 @@
 
 const Results = {
     currentElectionId: null,
+    _pollTimer: null,
+
+    stopPolling() {
+        if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
+    },
 
     async loadResults(electionId) {
         this.currentElectionId = electionId;
+        this.stopPolling();
 
         const waitingEl = document.getElementById('results-waiting');
         const contentEl = document.getElementById('results-content');
-        const backBtn = document.getElementById('results-back-btn');
 
         waitingEl.classList.add('hidden');
         contentEl.classList.add('hidden');
 
         try {
-            // Get election info
             const election = await API.getElection(electionId);
 
-            // If election is active, check if user voted
             if (election.status === 'active') {
                 if (App.currentUser && !App.isAdmin()) {
                     try {
                         const myVotes = await API.getMyVotes(electionId);
                         const votes = Array.isArray(myVotes) ? myVotes : [];
                         if (votes.length === 0) {
-                            // Hasn't voted yet, redirect to voting
                             App.navigate(`#voting/${electionId}`);
                             return;
                         }
-                    } catch (e) {
-                        // If error checking votes, show waiting
-                    }
+                    } catch (e) {}
                 }
 
-                // Show waiting screen for voters
                 if (App.currentUser && !App.isAdmin()) {
                     waitingEl.classList.remove('hidden');
                     contentEl.classList.add('hidden');
+                    // Poll for election completion
+                    this._pollTimer = setInterval(async () => {
+                        try {
+                            const el = await API.getElection(electionId);
+                            if (el.status === 'completed') {
+                                this.stopPolling();
+                                App.showToast('Seçim tamamlandı! Sonuçlar açıklanıyor... 🎉', 'success');
+                                this.loadResults(electionId);
+                            }
+                        } catch (e) {}
+                    }, 5000);
                     return;
                 }
             }
 
-            // Load results
             await this.showResults(electionId, election);
 
         } catch (error) {

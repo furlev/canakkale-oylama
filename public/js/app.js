@@ -62,13 +62,15 @@ const App = {
     onLoginSuccess() {
         this.hideLoading();
         this.updateHeader();
-        this.isTransitioning = false; // Reset any stuck transition
+        this.isTransitioning = false;
         
         if (this.isAdmin()) {
             this.navigate('#admin');
         } else {
             this.navigate('#voter');
         }
+        // Always trigger route handling (hash may already be set on refresh)
+        this.handleRoute();
     },
 
     isAdmin() {
@@ -79,6 +81,7 @@ const App = {
         const header = document.getElementById('app-header');
         const nameEl = document.getElementById('header-user-name');
         const roleEl = document.getElementById('header-user-role');
+        const avatarEl = document.getElementById('header-avatar');
 
         header.classList.remove('hidden');
         
@@ -88,6 +91,16 @@ const App = {
                 : this.currentUser.username || 'Kullanıcı';
             nameEl.textContent = name;
             roleEl.textContent = this.isAdmin() ? 'Yönetici' : (this.currentUser.role || 'Seçmen');
+            
+            // Show profile photo in header
+            if (avatarEl) {
+                if (this.currentUser.profile_image) {
+                    avatarEl.innerHTML = `<img src="${this.currentUser.profile_image}" alt="${this.escapeHtml(name)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);">`;
+                } else {
+                    avatarEl.innerHTML = `<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gradient-start),var(--gradient-end));display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600;border:2px solid var(--accent);">${this.generateAvatar(name)}</div>`;
+                }
+                avatarEl.style.display = 'flex';
+            }
         }
     },
 
@@ -130,7 +143,12 @@ const App = {
     },
 
     navigate(hash) {
-        window.location.hash = hash;
+        if (window.location.hash === hash) {
+            // Hash didn't change, manually trigger route
+            this.handleRoute();
+        } else {
+            window.location.hash = hash;
+        }
     },
 
     navigateBack() {
@@ -146,8 +164,7 @@ const App = {
     },
 
     showScreen(screenId) {
-        if (this.isTransitioning) return;
-        if (this.currentScreen === screenId) return;
+        if (this.isTransitioning && this.currentScreen === screenId) return;
 
         const screens = document.querySelectorAll('.screen');
         const target = document.getElementById(screenId);

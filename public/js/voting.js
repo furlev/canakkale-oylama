@@ -8,6 +8,41 @@ const Voting = {
     selectedCandidates: new Set(),
     maxVotes: 1,
     hasVoted: false,
+    _pollTimer: null,
+    _participationTimer: null,
+
+    // ===== POLLING CONTROL =====
+    startPolling(electionId) {
+        this.stopPolling();
+        // Poll every 5 seconds for election status changes
+        this._pollTimer = setInterval(() => this.pollElectionStatus(electionId), 5000);
+    },
+
+    startParticipationPolling(electionId) {
+        this.stopParticipationPolling();
+        this.loadParticipation(electionId);
+        this._participationTimer = setInterval(() => this.loadParticipation(electionId), 5000);
+    },
+
+    stopPolling() {
+        if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
+    },
+
+    stopParticipationPolling() {
+        if (this._participationTimer) { clearInterval(this._participationTimer); this._participationTimer = null; }
+    },
+
+    async pollElectionStatus(electionId) {
+        try {
+            const election = await API.getElection(electionId);
+            if (election.status === 'completed') {
+                this.stopPolling();
+                this.stopParticipationPolling();
+                App.showToast('Seçim tamamlandı! Sonuçlar açıklanıyor...', 'info');
+                setTimeout(() => App.navigate(`#results/${electionId}`), 1500);
+            }
+        } catch (e) { /* ignore polling errors */ }
+    },
 
     // ===== VOTER DASHBOARD =====
     async loadDashboard() {
@@ -24,7 +59,7 @@ const Voting = {
         roleEl.textContent = user.role || 'Seçmen';
 
         if (user.profile_image) {
-            avatarEl.innerHTML = `<img src="${user.profile_image}" alt="${fullName}">`;
+            avatarEl.innerHTML = `<img src="${user.profile_image}" alt="${App.escapeHtml(fullName)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
         } else {
             avatarEl.textContent = App.generateAvatar(fullName);
         }
@@ -34,17 +69,41 @@ const Voting = {
 
         try {
             const elections = await API.getElections();
-            
-            // elections is an array directly (unwrapped by API module)
             const electionList = Array.isArray(elections) ? elections : [];
-            
-            // Filter active and completed elections
             const visibleElections = electionList.filter(e => e.status === 'active' || e.status === 'completed');
 
             if (visibleElections.length === 0) {
                 container.innerHTML = '';
                 noElections.classList.remove('hidden');
+                // Start polling for new elections
+                this.stopPolling();
+                this._pollTimer = setInterval(async () => {
+                    try {
+                        const el = await API.getElections();
+                        const list = Array.isArray(el) ? el : [];
+                        const active = list.find(e => e.status === 'active');
+                        if (active) {
+                            this.stopPolling();
+                            App.showToast('Yeni seçim başladı! 🗳️', 'success');
+                            setTimeout(() => App.navigate(`#voting/${active.id}`), 1000);
+                        }
+                    } catch (e) {}
+                }, 5000);
                 return;
+            }
+
+            // If there's exactly one active election and voter hasn't voted, go directly
+            const activeElections = visibleElections.filter(e => e.status === 'active');
+            if (activeElections.length === 1) {
+                try {
+                    const myVotes = await API.getMyVotes(activeElections[0].id);
+                    const votes = Array.isArray(myVotes) ? myVotes : [];
+                    if (votes.length === 0) {
+                        // Auto-redirect to the only active election
+                        App.navigate(`#voting/${activeElections[0].id}`);
+                        return;
+                    }
+                } catch (e) {}
             }
 
             noElections.classList.add('hidden');
@@ -69,7 +128,6 @@ const Voting = {
         let votedStatus = '';
 
         if (election.status === 'active') {
-            // Check if already voted
             try {
                 const myVotes = await API.getMyVotes(election.id);
                 const votes = Array.isArray(myVotes) ? myVotes : [];
@@ -121,12 +179,10 @@ const Voting = {
 
         try {
             const electionData = await API.getElection(electionId);
-            // electionData is the unwrapped object: {...electionFields, candidates: [...]}
             this.currentElection = electionData;
             this.candidates = electionData.candidates || [];
             this.maxVotes = electionData.max_votes || 1;
 
-            // If no candidates loaded with election, fetch separately
             if (this.candidates.length === 0) {
                 const candData = await API.getCandidates(electionId);
                 this.candidates = Array.isArray(candData) ? candData : [];
@@ -144,11 +200,12 @@ const Voting = {
                 if (votes.length > 0) {
                     this.hasVoted = true;
                     this.showAlreadyVoted(votes);
+                    // Start polling for election completion
+                    this.startPolling(electionId);
+                    this.startParticipationPolling(electionId);
                     return;
                 }
-            } catch (e) {
-                // Not voted yet, continue
-            }
+            } catch (e) {}
 
             // Check if election is still active
             if (this.currentElection.status !== 'active') {
@@ -157,10 +214,44 @@ const Voting = {
             }
 
             this.renderCandidates();
+            // Start polling for election status + participation
+            this.startPolling(electionId);
+            this.startParticipationPolling(electionId);
         } catch (error) {
             grid.innerHTML = '<div class="empty-state"><div class="empty-icon">❌</div><h3>Seçim yüklenemedi</h3></div>';
             actions.classList.add('hidden');
         }
+    },
+
+    // ===== PARTICIPANTS PANEL =====
+    async loadParticipation(electionId) {
+        try {
+            const data = await API.getParticipation(electionId);
+            const participants = data.participants || [];
+            const counter = document.getElementById('participation-counter');
+            const list = document.getElementById('participants-list');
+
+            if (counter) counter.textContent = `${data.votedCount}/${data.totalCount}`;
+
+            if (list) {
+                list.innerHTML = participants.map(p => {
+                    const name = `${p.first_name} ${p.last_name}`.trim();
+                    const avatar = p.profile_image
+                        ? `<img src="${p.profile_image}" alt="${App.escapeHtml(name)}">`
+                        : `<span>${App.generateAvatar(name)}</span>`;
+                    return `
+                        <div class="participant-item ${p.has_voted ? 'voted' : ''}">
+                            <div class="participant-avatar">${avatar}</div>
+                            <div class="participant-info">
+                                <div class="participant-name">${App.escapeHtml(name)}</div>
+                                <div class="participant-role">${App.escapeHtml(p.role || '')}</div>
+                            </div>
+                            ${p.has_voted ? '<div class="participant-check">✅</div>' : '<div class="participant-waiting">⏳</div>'}
+                        </div>
+                    `;
+                }).join('');
+            }
+        } catch (e) { /* ignore */ }
     },
 
     showAlreadyVoted(votes) {
@@ -173,7 +264,6 @@ const Voting = {
         actions.classList.add('hidden');
         alreadyVoted.classList.remove('hidden');
 
-        // Show who they voted for
         const voteTags = votes.map(v => {
             const candidateName = v.candidate_name || v.name || 'Aday';
             return `<span class="my-vote-tag">${App.escapeHtml(candidateName)}</span>`;
@@ -261,9 +351,9 @@ const Voting = {
             );
 
             App.showToast('Oyunuz başarıyla kaydedildi! 🎉', 'success');
-            
-            // Show success animation
             this.showVoteSuccess();
+            // Refresh participation panel immediately
+            this.loadParticipation(this.currentElection.id);
         } catch (error) {
             App.setButtonLoading(btn, false);
         }
@@ -287,7 +377,6 @@ const Voting = {
             </div>
         `;
 
-        // Launch confetti
         setTimeout(() => launchConfetti(), 500);
     }
 };

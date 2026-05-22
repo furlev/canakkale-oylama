@@ -44,6 +44,7 @@
                 <span class="brand-text">Çanakkale Oylama</span>
             </div>
             <div class="header-user" id="header-user">
+                <div id="header-avatar" style="display:none;"></div>
                 <div class="header-user-info">
                     <span class="header-user-name" id="header-user-name"></span>
                     <span class="header-user-role" id="header-user-role"></span>
@@ -185,6 +186,16 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                     Oyumu Onayla
                 </button>
+            </div>
+
+            <!-- Live Participants Panel -->
+            <div id="participants-panel" class="participants-panel glass-card">
+                <h3 class="participants-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    Katılımcılar
+                    <span id="participation-counter" class="participation-counter">0/0</span>
+                </h3>
+                <div id="participants-list" class="participants-list"></div>
             </div>
         </div>
     </div>
